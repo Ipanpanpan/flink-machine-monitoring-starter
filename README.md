@@ -1,87 +1,80 @@
-# Real-Time Machine Temperature Monitoring & Alerts
+# Real-Time Machine Temperature Monitoring
 
-Academic practical based on `Flink_Streamlit_Student_Guide.pdf` (17 pages), with minor dashboard extensions.
+A **class demo assignment** illustrating real-time stream processing with Apache Flink SQL and Streamlit. The project generates simulated machine temperatures, computes windowed averages, and displays trends and alerts in a local dashboard. It is an educational demonstration, not a production monitoring system.
 
-## Original requirements
-- DataGen source: 2 records/second, machine IDs 1–3, temperatures 60–100°C.
-- Tumbling: 10-second non-overlapping average by machine.
-- Hopping/sliding: 10-second average, 5-second slide, by machine.
-- Write results to separate filesystem CSV folders.
-- Display latest averages, machine status, and temperature trend in Streamlit.
-
-## Extensions in this starter
-- Adjustable Warning and High thresholds.
-- High/Warning machine count and high-temperature alert message.
-- Select visible machines.
-- Show latest sliding minus tumbling average (descriptive comparison only).
-- Download processed sliding-window results as CSV.
-- Safer CSV consumption: read only finished Flink `part-*` files.
-
-## Prerequisites
-Windows with Docker Desktop running, Python, and PowerShell.
-
-## 1. Start the Flink cluster
-From project root:
-
-```powershell
-docker version
-docker compose up -d
-docker compose ps
+```mermaid
+flowchart LR
+    A[DataGen: simulated temperatures] --> B[Flink SQL]
+    B --> C[10-second tumbling windows]
+    B --> D[10-second hopping windows, 5-second slide]
+    C --> E[CSV output]
+    D --> E
+    E --> F[Pandas and Streamlit dashboard]
 ```
 
-Open `http://localhost:8081`. Expect 1 TaskManager and 2 slots.
+## Features
 
-## 2. Submit the Flink SQL pipeline
+- Generates two readings per second for machines 1–3, with temperatures from 60 to 100 °C.
+- Computes per-machine averages in non-overlapping tumbling and overlapping hopping windows.
+- Displays the latest averages, status counts and sliding-window trends.
+- Provides adjustable Warning and High thresholds, on-screen alerts, a machine filter, a window comparison and CSV download.
+- Reads completed Flink output files to avoid partially written results.
 
-```powershell
-docker compose exec jobmanager ./bin/sql-client.sh -f /opt/flink/sql/pipeline.sql
-```
+## Requirements
 
-The SQL script creates the DataGen source, both CSV sinks, and submits one continuous statement-set job. It also enables 5-second checkpointing so completed output files become available to readers.
+Docker Desktop with Docker Compose, Python and PowerShell. Start Docker Desktop before running the commands below. The commands assume Windows and the project root as the working directory.
 
-Wait for the job to become **RUNNING** and for completed checkpoints. Look for finished `part-*` files in `output/tumbling` and `output/sliding` (do not read `.inprogress` files).
+## Run the demonstration
 
-**Do not repeatedly run the SQL command while the old job is still RUNNING**: that creates duplicate continuous jobs and additional output files.
+1. Start the Flink cluster:
 
-## 3. Start dashboard (PowerShell; no activation required)
+   ```powershell
+   docker compose up -d
+   docker compose ps
+   ```
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m streamlit run dashboard.py
-```
+   Open the Flink UI at <http://localhost:8081>. The configuration provides one TaskManager with two slots.
 
-Open `http://localhost:8501`.
+2. Submit the continuous SQL job once:
 
-## 4. Test the extensions
-- Default thresholds: Warning >=80°C, High >=90°C. These classify the **sliding-window average**, not an individual sensor reading.
-- Change thresholds with sidebar sliders and observe status changes.
-- To trigger a High alert for the demonstration, lower the High threshold enough relative to the current observed average (and set Warning below it).
-- Change the machine filter, check the comparison table and chart.
-- Download the CSV and inspect its columns.
+   ```powershell
+   docker compose exec jobmanager ./bin/sql-client.sh -f /opt/flink/sql/pipeline.sql
+   ```
 
-## 5. Screenshot evidence
-Use the suggestions in `screenshots/README.md`. Show an actual alert using the thresholds visible in the screenshot.
+   Wait for the job to be running and checkpoints to complete. Finished `part-*` files should appear under `output/tumbling` and `output/sliding`. Repeating the submission while the job is running creates duplicate jobs.
 
-## 6. Stop
+3. Install dependencies and start the dashboard:
 
-```powershell
-docker compose down
-```
+   ```powershell
+   python -m venv .venv
+   .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+   .\.venv\Scripts\python.exe -m streamlit run dashboard.py --server.address 127.0.0.1
+   ```
 
-This stops the local cluster. Output CSV files remain on your host. On restart, rerun the SQL submission because this is a local demo rather than a durable deployment.
+   Open <http://localhost:8501>. If the dashboard is waiting for results, check that the Flink job is running and has completed a checkpoint. The dashboard reads finished files only.
+
+4. Try the controls. The default Warning and High thresholds are 80 °C and 90 °C. Lower the High threshold below a current average to demonstrate an alert, keeping the Warning threshold below it. Select machines, inspect the trend and comparison, and download the sliding-window CSV. Status is based on the latest sliding average, not an individual reading.
+
+5. Stop the cluster when finished:
+
+   ```powershell
+   docker compose down
+   ```
+
+   Output remains locally. Submit the SQL job again after restarting the cluster.
+
+## Project files
+
+| Path | Purpose |
+|---|---|
+| `sql/pipeline.sql` | Data generator, window queries and CSV sinks |
+| `dashboard.py` | Streamlit dashboard and extensions |
+| `docker-compose.yml` | Local Flink cluster |
+| `report.md` | Class report, recorded example results and outstanding evidence |
+| `screenshots/README.md` | Suggested screenshots for the assignment |
+
+Generated output and the Python virtual environment are ignored by Git. The Flink UI and the dashboard command above bind to localhost for local use. Avoid exposing this demo to an untrusted network.
 
 ## Limitations
-- Data is generated, not collected from physical sensors.
-- Processing time (`PROCTIME`) is used, not device event time.
-- The file-based transfer creates latency; dashboard refresh every 5 seconds does not mean end-to-end 5-second latency.
-- A window average can hide individual temperature spikes.
-- Output part files grow over time; this is a demo setup, not a production storage/retention solution.
 
-## Suggested academic deliverables
-1. Executable code (`docker-compose.yml`, `sql/pipeline.sql`, `dashboard.py`, `requirements.txt`).
-2. Evidence screenshots (`screenshots/`).
-3. A short report based on `report_outline.md`.
-4. Optional 2–4-minute demonstration recording.
-
-The original guide does **not** state an explicit lecturer grading rubric or submission manifest; confirm exact requirements with the lecturer.
+The source is simulated, and windows use processing time rather than sensor event time. Averages can hide short spikes. File rolling, checkpointing and dashboard refresh introduce latency; a five-second refresh does not guarantee five-second end-to-end latency. The comparison uses the latest available windows, which may have different time boundaries. Alerts appear in the dashboard only, and output files accumulate without a retention policy.

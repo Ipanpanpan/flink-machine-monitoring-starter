@@ -3,7 +3,7 @@ services:
     image: flink:2.3.0
     command: jobmanager
     ports:
-      - "8081:8081"
+      - "127.0.0.1:8081:8081"
     environment:
       - |
         FLINK_PROPERTIES=
