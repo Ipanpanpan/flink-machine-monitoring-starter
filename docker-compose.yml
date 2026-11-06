@@ -1,0 +1,26 @@
+services:
+  jobmanager:
+    image: flink:2.3.0
+    command: jobmanager
+    ports:
+      - "8081:8081"
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+    volumes:
+      - ./output:/opt/flink/output
+      - ./sql:/opt/flink/sql:ro
+
+  taskmanager:
+    image: flink:2.3.0
+    command: taskmanager
+    depends_on:
+      - jobmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 2
+    volumes:
+      - ./output:/opt/flink/output
